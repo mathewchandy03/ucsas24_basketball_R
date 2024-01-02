@@ -1,0 +1,139 @@
+---
+title: "Basketball Analytics with R"
+author: "Mathew Chandy"
+execute:
+  echo: true
+  format: revealjs
+  embed-resources: true
+---
+
+# sportsdataverse
+
+The SportsDataverse is a collection of R packages that can be used for a 
+variety of sports. Below are the SportsDataverse packages that can be used for 
+basketball analytics:
+
+* [hoopR](https://hoopr.sportsdataverse.org)
+* [wehoop](https://wehoop.sportsdataverse.org/)
+* [sportyR](https://sportyr.sportsdataverse.org/)
+* [oddsapiR](https://oddsapir.sportsdataverse.org/)
+* [gamezoneR](https://jacklich10.github.io/gamezoneR/)
+
+## Installing the collection
+```{r message = FALSE, warning = FALSE, ouput = FALSE}
+if (!requireNamespace('devtools', quietly = TRUE)){
+  install.packages('devtools')
+}
+devtools::install_github(repo = "sportsdataverse/sportsdataverse-R")
+```
+
+## hoopR
+
+Can be used for men's basketball analysis for the NBA and the NCAA.
+
+### hoopR: Assist Tracker
+```{r}
+library(tidyverse)
+library(hoopR)
+tatum_id <- 
+  nba_commonallplayers(
+    league_id = '00', 
+    season = year_to_season(most_recent_nba_season() - 1))[[1]] %>% 
+  filter(DISPLAY_FIRST_LAST == 'Jayson Tatum') %>% 
+  select(PERSON_ID) %>% 
+  as.character()
+tatum_passes <- 
+  nba_playerdashptpass(
+    player_id = tatum_id, 
+    season = year_to_season(most_recent_nba_season() - 1))
+tatum_passes_made <- tatum_passes[[1]]
+tatum_passes_made[c('pass_to_last', 'pass_to_name')] <- 
+  str_split_fixed(tatum_passes_made$PASS_TO, ", ", 2)
+ggplot(data = tatum_passes_made, aes(x = pass_to_last, y = PASS)) +
+  geom_bar(stat="identity")+
+  scale_fill_brewer(palette="Paired")+
+  theme_minimal() 
+  
+```
+
+```{r}
+tatum_passes_received <- tatum_passes[[2]]
+```
+
+## wehoop
+```{r, warning = FALSE}
+library(wehoop)
+```
+
+## sportyR
+```{r}
+library(sportyR)
+```
+
+## oddsapiR
+```{r}
+library(oddsapiR)
+```
+
+# March Madness
+```{r}
+library(hoopR)
+records <- ncaa_mbb_NET_rankings()
+records[c('wins', 'losses')] <- str_split_fixed(records$record, "-", 2)
+records$p <- as.numeric(records$wins) / 
+  (as.numeric(records$wins) + as.numeric(records$losses))
+log5 <- function(p, q) p * (1 - q) / (p + q - 2 * p * q)
+```
+
+```{r}
+library(rvest)
+webpage <- 
+  read_html(
+    "https://en.wikipedia.org/wiki/First_Four"
+    ) 
+table_node <- html_nodes(webpage, "table") 
+losers <- html_table(table_node)[[2]] %>% filter(Year == 2023) %>% 
+  select(Loser) %>% unique() %>% as.vector()
+losers <- losers[[1]]
+webpage <- 
+  read_html(
+    "https://en.wikipedia.org/wiki/2023_NCAA_Division_I_men%27s_basketball_tournament"
+    ) 
+table_node <- html_nodes(webpage, "table") 
+tournament <- html_table(table_node)[[4]]
+colnames(tournament) <- tournament[2, ]
+tournament <- tournament[-c(1, 2, 20, 21, 39, 40, 58, 59), 1:7] %>% 
+  filter(!(School %in% losers))
+```
+
+```{r}
+tournament[c('wins', 'losses')] <- str_split_fixed(tournament$Record, "–", 2)
+tournament$p <- as.numeric(tournament$wins) / 
+  (as.numeric(tournament$wins) + as.numeric(tournament$losses))
+```
+
+```{r}
+games23 <- load_mbb_schedule(seasons = 2023) %>% 
+  filter(grepl("Men's Basketball Championship", notes_headline) &
+           grepl("1st Round", notes_headline))
+setdiff(c(games23$home_location, games23$away_location), tournament$School)
+setdiff(tournament$School, c(games23$home_location, games23$away_location))
+tournament$School <- case_when(
+  tournament$School == "North Carolina State" ~ "NC State",
+  tournament$School == "Texas A&M–Corpus Christi" ~ "Texas A&M-Corpus Christi",
+  tournament$School == "Miami (FL)" ~ "Miami",
+  tournament$School == "Texas Christian" ~ "TCU",
+  .default = tournament$School)
+```
+
+```{r}
+games23 <- games23 %>% 
+  merge(tournament, by.x = "home_location", by.y = "School") %>% 
+  merge(tournament, by.x = "away_location", by.y = "School") %>% 
+  select(-c(uid:notes_type, broadcast_market:player_box))
+```
+
+```{r}
+games23 <- games23 %>% mutate(log5 = log5(p.x, p.y))
+```
+
