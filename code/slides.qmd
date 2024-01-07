@@ -85,31 +85,64 @@ records$p <- as.numeric(records$wins) /
 log5 <- function(p, q) p * (1 - q) / (p + q - 2 * p * q)
 ```
 
-```{r}
-library(rvest)
-webpage <- 
-  read_html(
-    "https://en.wikipedia.org/wiki/First_Four"
-    ) 
-table_node <- html_nodes(webpage, "table") 
-losers <- html_table(table_node)[[2]] %>% filter(Year == 2023) %>% 
-  select(Loser) %>% unique() %>% as.vector()
-losers <- losers[[1]]
-webpage <- 
-  read_html(
-    "https://en.wikipedia.org/wiki/2023_NCAA_Division_I_men%27s_basketball_tournament"
-    ) 
-table_node <- html_nodes(webpage, "table") 
-tournament <- html_table(table_node)[[4]]
-colnames(tournament) <- tournament[2, ]
-tournament <- tournament[-c(1, 2, 20, 21, 39, 40, 58, 59), 1:7] %>% 
-  filter(!(School %in% losers))
-```
 
 ```{r}
-tournament[c('wins', 'losses')] <- str_split_fixed(tournament$Record, "–", 2)
-tournament$p <- as.numeric(tournament$wins) / 
-  (as.numeric(tournament$wins) + as.numeric(tournament$losses))
+library(data.tree)
+library(treemap)
+tournament23 <- load_mbb_schedule(seasons = 2023) %>% 
+  filter(grepl("Men's Basketball Championship", notes_headline) & 
+           !grepl("First Four", notes_headline)) %>% 
+  select(notes_headline, home_abbreviation, home_conference_id, home_score, 
+         home_winner, home_current_rank, home_linescores, home_records,
+         away_abbreviation, away_conference_id, away_score, away_winner,
+         away_current_rank, away_linescores, away_records
+         ) %>% 
+  mutate(final_four = case_when(grepl("Midwest", notes_headline) |
+                                grepl("West", notes_headline) |
+                                home_abbreviation == "CONN" & 
+                                away_abbreviation == "MIA" ~ "midwest_west",
+                                grepl("South", notes_headline) |
+                                grepl("East", notes_headline) |
+                                home_abbreviation == "SDSU" &
+                                away_abbreviation == "FAU" ~ "south_east"),
+         # The pairings are different for each year
+         elite_eight = case_when(
+                            grepl("Midwest", notes_headline) ~ "midwest",
+                            grepl("South", notes_headline) ~ "south",
+                            grepl("West", notes_headline) ~ "west",
+                            grepl("East", notes_headline) ~ "east"),
+         sweet_sixteen = ifelse(grepl("Sweet 16", notes_headline) |
+                                grepl("2nd Round", notes_headline) |
+                                grepl("1st Round", notes_headline),
+                                case_when(
+                                  home_current_rank %in% 
+                                    c(1, 4, 5, 8, 9, 12) ~ 1,
+                                  home_current_rank %in% 
+                                    c(2, 3, 6, 7, 10, 11) ~ 2), NA),
+         round_of_32 = ifelse(grepl("2nd Round", notes_headline) |
+                              grepl("1st Round", notes_headline),
+                              case_when(
+                                 home_current_rank %in% c(1, 8, 9) ~ 1,
+                                 home_current_rank %in% c(2, 7, 10) ~ 2,
+                                 home_current_rank %in% c(3, 6, 11) ~ 3,
+                                 home_current_rank %in% c(4, 5, 12) ~ 4), NA),
+         round_of_64 = ifelse(grepl("1st Round", notes_headline),
+                         home_current_rank,
+                         NA)
+         )
+
+
+start23 <- tournament23 %>% 
+  na.omit()
+start23$pathString <- paste("national", 
+                            start23$final_four, 
+                            start23$elite_eight,
+                            start23$sweet_sixteen,
+                            start23$round_of_32,
+                            start23$round_of_64,
+                            sep = "/")
+bracket <- as.Node(start23)
+print(bracket, "home_abbreviation", "away_abbreviation")
 ```
 
 ```{r}
@@ -130,10 +163,39 @@ tournament$School <- case_when(
 games23 <- games23 %>% 
   merge(tournament, by.x = "home_location", by.y = "School") %>% 
   merge(tournament, by.x = "away_location", by.y = "School") %>% 
-  select(-c(uid:notes_type, broadcast_market:player_box))
+  select(-c(uid:notes_type, broadcast_market:player_box)) %>% 
+  mutate(log5 = log5(p.x, p.y))
 ```
 
 ```{r}
-games23 <- games23 %>% mutate(log5 = log5(p.x, p.y))
+first_round <- games23 %>% 
+  select(notes_headline, home_location, Seed.x,
+         p.x, away_location, Seed.y, p.y) %>% 
+  arrange(notes_headline)
+  
+other_rounds <- load_mbb_schedule(seasons = 2023) %>% 
+  filter(grepl("Men's Basketball Championship", notes_headline) &
+           !grepl("1st Round", notes_headline)) %>% 
+  mutate(Seed.x = home_current_rank, p.x = NA, Seed.y = away_current_rank, 
+         p.y = NA) %>% 
+  select(notes_headline, home_location, Seed.x, p.x, away_location, Seed.y, p.y)
+input <- rbind(first_round, other_rounds)
+
+```
+
+
+```{r}
+tourney_exp_outcome <- function(home, away, prob_func) {
+  for (i in 1:6)) {
+    east1 <- games23 %>% 
+      filter(notes_headline == 
+               "Men's Basketball Championship - East Region - 1st Round")
+  }
+  
+}
+```
+
+```{r}
+asdfasdf <- other_rounds %>% select(notes_headline, Ov)
 ```
 
