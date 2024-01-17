@@ -88,13 +88,20 @@ gsw <- teams_shots(teams = "Golden State Warriors", seasons = 2023,
 
 curry <- gsw %>% filter(namePlayer == "Stephen Curry") %>% 
   mutate(x = as.numeric(as.character(locationX)) / 10, 
-         y = as.numeric(as.character(locationY)) / 10 - height + hoop_center_y)
+         y = as.numeric(as.character(locationY)) / 10 - height + hoop_center_y,
+         z = ifelse(typeEvent == "Missed Shot", 1, 0),
+         factor_x = as.character(floor(x) %% 10),
+         factor_y = as.character(floor(y) %% 10))
 
 
 geom_basketball(league = "NBA", rotation = 270, display_range = "offense") +
   geom_point(data = curry, aes(x, y))
 
+
+geom_basketball(league = "NBA", rotation = 270, display_range = "offense") +
+  stat_binhex(data = curry, aes(x, y))
 ```
+
 
 # March Madness
 ```{r}
