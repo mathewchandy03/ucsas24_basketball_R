@@ -33,29 +33,52 @@ Can be used for men's basketball analysis for the NBA and the NCAA.
 ```{r}
 library(tidyverse)
 library(hoopR)
-tatum_id <- 
-  nba_commonallplayers(
-    league_id = '00', 
-    season = year_to_season(most_recent_nba_season() - 1))[[1]] %>% 
-  filter(DISPLAY_FIRST_LAST == 'Jayson Tatum') %>% 
-  select(PERSON_ID) %>% 
+ 
+team_id <- nba_leaguedashteamstats(
+  league_id = '00', 
+  season = year_to_season(most_recent_nba_season() - 1))[[1]] %>% 
+  filter(TEAM_NAME == 'Boston Celtics') %>% 
+  select(TEAM_ID) %>% 
   as.character()
-tatum_passes <- 
-  nba_playerdashptpass(
-    player_id = tatum_id, 
-    season = year_to_season(most_recent_nba_season() - 1))
-tatum_passes_made <- tatum_passes[[1]]
-tatum_passes_made[c('pass_to_last', 'pass_to_name')] <- 
-  str_split_fixed(tatum_passes_made$PASS_TO, ", ", 2)
-ggplot(data = tatum_passes_made, aes(x = pass_to_last, y = PASS)) +
-  geom_bar(stat="identity")+
-  scale_fill_brewer(palette="Paired")+
-  theme_minimal() 
   
+team_passes <- 
+    nba_playerdashptpass(
+      player_id = "",
+      team_id = team_id, 
+      season = year_to_season(most_recent_nba_season() - 1))[[1]]
+```
+### hoopR: Clustering
+```{r}
+fg_pct_stats <- nba_leaguedashptteamdefend(league_id = '00', 
+                           season = year_to_season(most_recent_nba_season() - 1))[[1]] %>% 
+  select(TEAM_ABBREVIATION, D_FG_PCT, NORMAL_FG_PCT) %>% 
+  as.data.frame()
+rownames(fg_pct_stats) <- fg_pct_stats$TEAM_ABBREVIATION
+fg_pct_stats <- fg_pct_stats %>% select(-TEAM_ABBREVIATION)
 ```
 
 ```{r}
-tatum_passes_received <- tatum_passes[[2]]
+kmeans(fg_pct_stats, centers = 3)
+```
+
+```{r}
+espn_nba_teams()
+```
+
+
+
+### hoopR
+
+```{r}
+nba_leaguehustlestatsplayer(league_id = '00', team_id = '1610612761')
+```
+
+```{r}
+nba_playerdashptreb(player_id = '', season = year_to_season(most_recent_nba_season() - 1))
+```
+
+```{r}
+nba_boxscoretraditionalv2(game_id = "0022200021")
 ```
 
 ## wehoop
@@ -95,7 +118,7 @@ curry <- gsw %>% filter(namePlayer == "Stephen Curry") %>%
 
 
 geom_basketball(league = "NBA", rotation = 270, display_range = "offense") +
-  geom_point(data = curry, aes(x, y))
+  geom_point(data = curry, aes(x, y, color = isShotMade))
 
 
 geom_basketball(league = "NBA", rotation = 270, display_range = "offense") +
@@ -178,27 +201,85 @@ bracket <- as.Node(start23)
 print(bracket, "home_abbreviation", "home_p", "away_abbreviation", "away_p")
 ```
 
-```{r}
-bracket$children
-```
+
 
 ```{r}
 log5 <- function(p, q) p * (1 - q) / (p + q - 2 * p * q)
 exp_winner <- function(bracket, prob_func) {
+
+  game = bracket$root
   # base case
-  game < bracket$root
-  names <- c(game$home_abbreviation, game$away_abbreviation) # team names
-  prob_reach <- c(1, 1) # probability that each possible team reaches that game
-  prob_win <- c(prob_func())
-  
-  p
-  for (child in game$children) {
-    if (length(child$attributes) != 0) {
-      child$
-    } 
-    child
+  if (length(game$Get("home_abbreviation")) == 1) {
+    # probability a team makes it to that game/round
+    home_names <- str(game$Get("home_abbreviation"))
+    home_round <- c(home_names = 1)
+    away_names <- str(game$Get("away_abbreviation"))
+    away_round <- c(away_names = 1)
+    
+    # probability a matchup happens
+    matchups <- expand_grid(home_round, away_round) %>% 
+      mutate(matchup = home_round * away_round,
+             home_team = names(home_round),
+             away_team = names(away_round),
+             home_ingredients = game$home_p,
+             away_ingredients = game$away_p,
+             home_win = prob_func(home_ingredients, away_ingredients),
+             away_win = 1 - home_win,
+             home_advance = matchup * home_win,
+             away_advance = mathcup * away_win
+             )
+    
+    home <- matchups %>% 
+      group_by(home_team) %>% 
+      summarize(advance = sum(home_advance))
+    
+    away <- matchups %>% 
+      group_by(away_team) %>% 
+      summarize(advance = sum(away_advance))
+    
+
+    game$teams <- rbind(home, away)
+    
+  } else { 
+    # recursive case
+    # probability a team makes it to that game/round
+   
+    home_round <- exp_winner(game$children[1], prob_func)
+    away_round <- exp_winner(game$children[2], prob_func)
+    
+    # probability a matchup happens
+    matchups <- expand_grid(home_round, away_round) %>% 
+      mutate(matchup = home_round * away_round,
+             home_team = names(home_round),
+             away_team = names(away_round),
+             home_ingredients = rep(c(game$children[1]$home_p, 
+                                  game$children[1]$away_p), each = 2),
+             away_ingredients = rep(c(game$children[2]$home_p, 
+                                  game$children[2]$away_p), times = 2),
+             home_win = prob_func(home_ingredients, away_ingredients),
+             away_win = 1 - home_win,
+             home_advance = matchup * home_win,
+             away_advance = mathcup * away_win
+             )
+    
+    home <- matchups %>% 
+      group_by(home_team) %>% 
+      summarize(advance = sum(home_advance))
+    
+    away <- matchups %>% 
+      group_by(away_team) %>% 
+      summarize(advance = sum(away_advance))
+    
+    
+    game$teams <- rbind(home, away)
   }
+  
+  return(game)
+  
+  
 }
+
+exp_winner(bracket, log5)
 ```
 
 
