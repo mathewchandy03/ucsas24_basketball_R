@@ -18,7 +18,12 @@ basketball analytics:
 * [sportyR](https://sportyr.sportsdataverse.org/)
 
 ## Installing the collection
-```{r message = FALSE, warning = FALSE, ouput = FALSE}
+
+```{r include = FALSE}
+Sys.setenv("VROOM_CONNECTION_SIZE" = 500000)
+```
+
+```{r message = FALSE, warning = FALSE, output = FALSE}
 if (!requireNamespace('devtools', quietly = TRUE)){
   install.packages('devtools')
 }
@@ -29,24 +34,16 @@ devtools::install_github(repo = "sportsdataverse/sportsdataverse-R")
 
 Can be used for men's basketball analysis for the NBA and the NCAA.
 
-### hoopR: Assist Tracker
+### BasketballAnalyzeR: Assist Network
 ```{r}
-library(tidyverse)
-library(hoopR)
- 
-team_id <- nba_leaguedashteamstats(
-  league_id = '00', 
-  season = year_to_season(most_recent_nba_season() - 1))[[1]] %>% 
-  filter(TEAM_NAME == 'Boston Celtics') %>% 
-  select(TEAM_ID) %>% 
-  as.character()
-  
-team_passes <- 
-    nba_playerdashptpass(
-      player_id = "",
-      team_id = team_id, 
-      season = year_to_season(most_recent_nba_season() - 1))[[1]]
+library(BasketballAnalyzeR)
+PbP <- PbPmanipulation(PbP.BDB)
+PbP.BOS <- subset(PbP, team == "BOS")
+out <- assistnet(PbP.BOS)
+plot(out, layout = "circle", edge.thr = 30, node.col = "FGM_ASTp", 
+     node.size = "ASTPTS")
 ```
+
 ### hoopR: Clustering
 ```{r}
 fg_pct_stats <- nba_leaguedashptteamdefend(league_id = '00', 
@@ -54,31 +51,22 @@ fg_pct_stats <- nba_leaguedashptteamdefend(league_id = '00',
   select(TEAM_ABBREVIATION, D_FG_PCT, NORMAL_FG_PCT) %>% 
   as.data.frame()
 rownames(fg_pct_stats) <- fg_pct_stats$TEAM_ABBREVIATION
-fg_pct_stats <- fg_pct_stats %>% select(-TEAM_ABBREVIATION)
+fg_pct_stats <- fg_pct_stats %>% select(-TEAM_ABBREVIATION) %>% 
+  mutate(D_FG_PCT = as.numeric(D_FG_PCT),
+                               NORMAL_FG_PCT = as.numeric(NORMAL_FG_PCT))
 ```
 
 ```{r}
-kmeans(fg_pct_stats, centers = 3)
+res.km <- kmeans(fg_pct_stats, centers = 3)
 ```
 
 ```{r}
-espn_nba_teams()
-```
-
-
-
-### hoopR
-
-```{r}
-nba_leaguehustlestatsplayer(league_id = '00', team_id = '1610612761')
-```
-
-```{r}
-nba_playerdashptreb(player_id = '', season = year_to_season(most_recent_nba_season() - 1))
-```
-
-```{r}
-nba_boxscoretraditionalv2(game_id = "0022200021")
+library(factoextra)
+fviz_cluster(res.km, data = fg_pct_stats,
+             palette = c("#2E9FDF", "#00AFBB", "#E7B800"), 
+             geom = "text",
+             ellipse.type = "convex", 
+             ggtheme = theme_bw())
 ```
 
 ## wehoop
@@ -124,7 +112,6 @@ geom_basketball(league = "NBA", rotation = 270, display_range = "offense") +
 geom_basketball(league = "NBA", rotation = 270, display_range = "offense") +
   stat_binhex(data = curry, aes(x, y))
 ```
-
 
 # March Madness
 ```{r}
