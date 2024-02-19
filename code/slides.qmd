@@ -34,7 +34,7 @@ devtools::install_github(repo = "sportsdataverse/sportsdataverse-R")
 
 Can be used for men's basketball analysis for the NBA and the NCAA.
 
-### BasketballAnalyzeR: Assist Network
+## BasketballAnalyzeR: Assist Network
 ```{r}
 library(BasketballAnalyzeR)
 PbP <- PbPmanipulation(PbP.BDB)
@@ -44,8 +44,10 @@ plot(out, layout = "circle", edge.thr = 30, node.col = "FGM_ASTp",
      node.size = "ASTPTS")
 ```
 
-### hoopR: Clustering
-```{r}
+## hoopR: Clustering
+```{r, include = FALSE}
+library(hoopR)
+library(tidyverse)
 fg_pct_stats <- nba_leaguedashptteamdefend(league_id = '00', 
                            season = year_to_season(most_recent_nba_season() - 1))[[1]] %>% 
   select(TEAM_ABBREVIATION, D_FG_PCT, NORMAL_FG_PCT) %>% 
@@ -57,11 +59,8 @@ fg_pct_stats <- fg_pct_stats %>% select(-TEAM_ABBREVIATION) %>%
 ```
 
 ```{r}
-res.km <- kmeans(fg_pct_stats, centers = 3)
-```
-
-```{r}
 library(factoextra)
+res.km <- kmeans(fg_pct_stats, centers = 3)
 fviz_cluster(res.km, data = fg_pct_stats,
              palette = c("#2E9FDF", "#00AFBB", "#E7B800"), 
              geom = "text",
@@ -74,8 +73,8 @@ fviz_cluster(res.km, data = fg_pct_stats,
 library(wehoop)
 ```
 
-## sportyR
-```{r}
+## nbastatR and sportyR
+```{r, include = FALSE}
 devtools::install_github("abresler/nbastatR")
 library(nbastatR)
 library(sportyR)
@@ -103,12 +102,8 @@ curry <- gsw %>% filter(namePlayer == "Stephen Curry") %>%
          z = ifelse(typeEvent == "Missed Shot", 1, 0),
          factor_x = as.character(floor(x) %% 10),
          factor_y = as.character(floor(y) %% 10))
-
-
-geom_basketball(league = "NBA", rotation = 270, display_range = "offense") +
-  geom_point(data = curry, aes(x, y, color = isShotMade))
-
-
+```
+```{r}
 geom_basketball(league = "NBA", rotation = 270, display_range = "offense") +
   stat_binhex(data = curry, aes(x, y))
 ```
@@ -190,7 +185,7 @@ print(bracket, "home_abbreviation", "home_p", "away_abbreviation", "away_p")
 
 
 
-```{r}
+```{r, error = TRUE}
 log5 <- function(p, q) p * (1 - q) / (p + q - 2 * p * q)
 exp_winner <- function(bracket, prob_func) {
 
