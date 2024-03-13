@@ -172,98 +172,116 @@ start23 <- tournament23 %>%
            (as.numeric(home_overall_wins) + as.numeric(home_overall_losses)),
          away_p = as.numeric(away_overall_wins) / 
            (as.numeric(away_overall_wins) + as.numeric(away_overall_losses)))
-start23$pathString <- paste("national", 
+start23$path <- paste("national", 
                             start23$final_four, 
                             start23$elite_eight,
                             start23$sweet_sixteen,
                             start23$round_of_32,
                             start23$round_of_64,
                             sep = "/")
-bracket <- as.Node(start23)
-print(bracket, "home_abbreviation", "home_p", "away_abbreviation", "away_p")
+start23 <- arrange(start23, path)
 ```
 
-
-
-```{r, error = TRUE}
+```{r}
 log5 <- function(p, q) p * (1 - q) / (p + q - 2 * p * q)
-exp_winner <- function(bracket, prob_func) {
-
-  game = bracket$root
-  # base case
-  if (length(game$Get("home_abbreviation")) == 1) {
-    # probability a team makes it to that game/round
-    home_names <- str(game$Get("home_abbreviation"))
-    home_round <- c(home_names = 1)
-    away_names <- str(game$Get("away_abbreviation"))
-    away_round <- c(away_names = 1)
+simulate_tournament <- function(df) {
+  results <- df %>% select(path, home_abbreviation, away_abbreviation, home_p,
+                            away_p)
+  path <- unique(df$path)
+  while (nrow(df) > 1) {
+    current_matches <- df[df$path == path, ]
+  
+    winners <- as.list(apply(current_matches, 1, function(match) {
+      winner <- sample(c("home", "away"), size = 1, prob = c(match["home_p"], match["away_p"]))
+      winner <- c(match[paste(winner, "_abbreviation", sep = "")], match[paste(winner, "_p", 
+                                                                  sep = "")])
+      winner
+    }))
     
-    # probability a matchup happens
-    matchups <- expand_grid(home_round, away_round) %>% 
-      mutate(matchup = home_round * away_round,
-             home_team = names(home_round),
-             away_team = names(away_round),
-             home_ingredients = game$home_p,
-             away_ingredients = game$away_p,
-             home_win = prob_func(home_ingredients, away_ingredients),
-             away_win = 1 - home_win,
-             home_advance = matchup * home_win,
-             away_advance = mathcup * away_win
-             )
+    winners_df <- data.frame(winner = unlist(winners))
     
-    home <- matchups %>% 
-      group_by(home_team) %>% 
-      summarize(advance = sum(home_advance))
+    winners_df <- split(winners_df$winner, 
+                        as.integer(gl(nrow(winners_df), 2, nrow(winners_df))))
     
-    away <- matchups %>% 
-      group_by(away_team) %>% 
-      summarize(advance = sum(away_advance))
+    winners_df <- as.data.frame(do.call(rbind, winners_df))
     
-
-    game$teams <- rbind(home, away)
+    colnames(winners_df) <- c("winner", "p")
     
-  } else { 
-    # recursive case
-    # probability a team makes it to that game/round
-   
-    home_round <- exp_winner(game$children[1], prob_func)
-    away_round <- exp_winner(game$children[2], prob_func)
+    df <- cbind(current_matches, winners_df) %>% 
+      mutate(path = sub("/[^/]*$", "", path))
     
-    # probability a matchup happens
-    matchups <- expand_grid(home_round, away_round) %>% 
-      mutate(matchup = home_round * away_round,
-             home_team = names(home_round),
-             away_team = names(away_round),
-             home_ingredients = rep(c(game$children[1]$home_p, 
-                                  game$children[1]$away_p), each = 2),
-             away_ingredients = rep(c(game$children[2]$home_p, 
-                                  game$children[2]$away_p), times = 2),
-             home_win = prob_func(home_ingredients, away_ingredients),
-             away_win = 1 - home_win,
-             home_advance = matchup * home_win,
-             away_advance = mathcup * away_win
-             )
-    
-    home <- matchups %>% 
-      group_by(home_team) %>% 
-      summarize(advance = sum(home_advance))
-    
-    away <- matchups %>% 
-      group_by(away_team) %>% 
-      summarize(advance = sum(away_advance))
-    
-    
-    game$teams <- rbind(home, away)
+    df <- df %>%
+      group_by(path) %>%
+      summarize(home_abbreviation = first(winner),
+                away_abbreviation = nth(winner, 2),
+                home_p = first(p),
+                away_p = nth(p, 2))
+    results <- rbind(results, df)
+    path <- unique(df$path)
   }
   
-  return(game)
+  champion <- sample(c(results[63, 2], results[63, 3]), 1, 
+                     prob = c(results[63, 4], results[63, 5]))
   
   
+  results <- rbind(results, list("champion", as.character(champion), NA, NA, NA))
+  
+  new_vector <- c()
+
+  for (i in 33:64) {
+    new_vector <- c(new_vector, results[i, 2], results[i, 3])
+  }
+  return(new_vector)
 }
 
-exp_winner(bracket, log5)
+result <- simulate_tournament(start23)
 ```
 
+
+
+
+
+```{r}
+result <- replicate(100, simulate_tournament(start23))
+most_common_values <- function(vectors) {
+  ws <- c()
+  ls <- c()
+  for (i in 1:dim(vectors)[1]) {
+    winners <- sort(table(unlist(vectors[i,])), decreasing = TRUE)
+    ws <- c(ws, names(winners)[1])
+    ls <- c(ls, names(winners)[2])
+  }
+  
+  for (i in rev(ws)) {
+    index = 0
+    if (i %in% ws[1:32]) {
+      index <- which(ws == i)[1]
+    }
+    else {
+      index <- which(ls == i)[i]
+    }
+    ws[index] = i
+    ws[32 + ceiling(index / 2)] = i
+    ws[48 + ceiling(index / 4)] = i
+    ws[56 + ceiling(index / 8)] = i
+    ws[60 + ceiling(index / 16)] = i
+    ws[62 + ceiling(index / 32)] = i
+  }
+  
+  return(ws)
+}
+
+asdf <- most_common_values(result)
+
+calculate_mode <- function(x) {
+  unique_x <- unique(x)
+  freq <- tabulate(match(x, unique_x))
+  mode <- unique_x[which.max(freq)]
+  return(mode)
+}
+
+modes <- apply(result, 1, calculate_mode)
+```
 
 
 
