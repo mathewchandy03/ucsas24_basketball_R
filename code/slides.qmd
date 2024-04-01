@@ -7,6 +7,16 @@ execute:
   embed-resources: true
 ---
 
+# How does one begin a Basketball Analytics Project?
+
+# Data Acquisition
+## Basketball Reference
+
+knitr::include_url("https://www.basketball-reference.com")
+
+
+
+
 # sportsdataverse
 
 The SportsDataverse is a collection of R packages that can be used for a 
@@ -30,22 +40,8 @@ if (!requireNamespace('devtools', quietly = TRUE)){
 devtools::install_github(repo = "sportsdataverse/sportsdataverse-R")
 ```
 
-## hoopR
-
-Can be used for men's basketball analysis for the NBA and the NCAA.
-
-## BasketballAnalyzeR: Assist Network
-```{r}
-library(BasketballAnalyzeR)
-PbP <- PbPmanipulation(PbP.BDB)
-PbP.BOS <- subset(PbP, team == "BOS")
-out <- assistnet(PbP.BOS)
-plot(out, layout = "circle", edge.thr = 30, node.col = "FGM_ASTp", 
-     node.size = "ASTPTS")
-```
-
 ## hoopR: Clustering
-```{r, include = FALSE}
+```{r}
 library(hoopR)
 library(tidyverse)
 fg_pct_stats <- nba_leaguedashptteamdefend(league_id = '00', 
@@ -58,8 +54,19 @@ fg_pct_stats <- fg_pct_stats %>% select(-TEAM_ABBREVIATION) %>%
                                NORMAL_FG_PCT = as.numeric(NORMAL_FG_PCT))
 ```
 
+## hoopR: Regression
 ```{r}
+library(hoopR)
+library(tidyverse)
 library(factoextra)
+fg_pct_stats <- nba_leaguedashptteamdefend(league_id = '00', 
+                           season = year_to_season(most_recent_nba_season() - 1))[[1]] %>% 
+  select(TEAM_ABBREVIATION, D_FG_PCT, NORMAL_FG_PCT) %>% 
+  as.data.frame()
+rownames(fg_pct_stats) <- fg_pct_stats$TEAM_ABBREVIATION
+fg_pct_stats <- fg_pct_stats %>% select(-TEAM_ABBREVIATION) %>% 
+  mutate(D_FG_PCT = as.numeric(D_FG_PCT),
+                               NORMAL_FG_PCT = as.numeric(NORMAL_FG_PCT))
 res.km <- kmeans(fg_pct_stats, centers = 3)
 fviz_cluster(res.km, data = fg_pct_stats,
              palette = c("#2E9FDF", "#00AFBB", "#E7B800"), 
@@ -67,6 +74,28 @@ fviz_cluster(res.km, data = fg_pct_stats,
              ellipse.type = "convex", 
              ggtheme = theme_bw())
 ```
+
+
+## BasketballAnalyzeR: Assist Network
+```{r}
+library(BasketballAnalyzeR)
+PbP <- PbPmanipulation(PbP.BDB)
+PbP.BOS <- subset(PbP, team == "BOS")
+out <- assistnet(PbP.BOS)
+plot(out, layout = "circle", edge.thr = 30, node.col = "FGM_ASTp", 
+     node.size = "ASTPTS")
+```
+
+## ncaahoopR: Assist Network
+```{r}
+devtools::install_github("lbenz730/ncaahoopR")
+library(ncaahoopR)
+assist_net(team = "Yale", node_col = "royalblue4", season = "2017-18")
+```
+
+
+
+
 
 ## wehoop
 ```{r, warning = FALSE}
@@ -109,11 +138,92 @@ geom_basketball(league = "NBA", rotation = 270, display_range = "offense") +
 ```
 
 # March Madness
+
+## Ranking by some metric
+We can rank the teams with some metric, then for each matchup, we predict
+that the better team wins. Then we needn't care about probability.
+
+## "Probabilistic" approach
+If we choose not to assume a strict ranking of teams, the
+problem becomes a little more complicated. 
+In other words, we do not assume transitivity of matchup outcomes:
+Team A is favored against Team B and
+Team B is favored against Team C doesn't imply
+Team A is favored against Team C.
+
+## Simulation approach
+We can model the number of points scored by each team with a Poisson
+regression.
+
+```{r}
+# Load necessary library
+library(stats)
+
+# Generate some example data
+set.seed(123)
+data <- data.frame(
+  x = 1:100,                 # Independent variable
+  y = rpois(100, lambda = 2) # Dependent variable (counts)
+)
+
+# Fit Poisson regression model
+model <- glm(y ~ x, data = data, family = "poisson")
+
+# Summary of the model
+summary(model)
+
+# Predictions from the model
+predictions <- predict(model, type = "response")
+
+sim <- c()
+
+for (pred in predictions) {
+  sim <- c(sim, rpois(1, lambda = pred))
+}
+
+# Plotting the results
+plot(data$x, data$y, main = "Poisson Regression", xlab = "X", ylab = "Y")
+lines(data$x, predictions, col = "red", lwd = 2)
+plot(data$x, sim)
+```
+
+
+
+```{r}
+scoring <- data.frame(espn_mbb_standings(2003))
+tournament <- load_mbb_schedule(seasons = 2003) %>% 
+  filter(grepl("Men's Basketball Championship", notes_headline) & 
+           !grepl("First Four", notes_headline))
+sample <- merge(scoring, tournament, by.x = "team_id", by.y = "home_id")
+for (year in c(2016:2022)) {
+  scoring <- data.frame(espn_mbb_standings(year))
+  tournament <- load_mbb_schedule(seasons = year) %>% 
+    filter(grepl("Men's Basketball Championship", notes_headline) |
+             grepl("MEN'S BASKETBALL CHAMPIONSHIP", notes_headline), 
+             !grepl("First Four", notes_headline),
+             !grepl("FIRST FOUR", notes_headline))
+  sample <- rbind(sample,
+                  merge(merge(tournament, scoring, by.x = "home_id", 
+                        by.y = "team_id"), scoring, by.x = "away_id", 
+                        by.y = "team_id"))
+}
+```
+
+
+
+
+
+
+
+
+
+
 ```{r}
 library(hoopR)
 library(data.tree)
 library(treemap)
-tournament23 <- load_mbb_schedule(seasons = 2023) %>% 
+library(tidyverse)
+tournament24 <- load_mbb_schedule(seasons = 2024) %>% 
   filter(grepl("Men's Basketball Championship", notes_headline) & 
            !grepl("First Four", notes_headline)) %>% 
   select(notes_headline, home_abbreviation, home_conference_id, home_score, 
@@ -156,8 +266,8 @@ tournament23 <- load_mbb_schedule(seasons = 2023) %>%
          )
 
 
-start23 <- tournament23 %>% 
-  na.omit() %>% 
+start24 <- tournament24 %>% 
+  filter(home_abbreviation != "TBD") %>% 
   mutate(home_records = str_extract_all(home_records, "\\d+"),
          away_records = str_extract_all(away_records, "\\d+"),
          home_overall_wins = 
@@ -172,14 +282,14 @@ start23 <- tournament23 %>%
            (as.numeric(home_overall_wins) + as.numeric(home_overall_losses)),
          away_p = as.numeric(away_overall_wins) / 
            (as.numeric(away_overall_wins) + as.numeric(away_overall_losses)))
-start23$path <- paste("national", 
-                            start23$final_four, 
-                            start23$elite_eight,
-                            start23$sweet_sixteen,
-                            start23$round_of_32,
-                            start23$round_of_64,
+start24$path <- paste("national", 
+                            start24$final_four, 
+                            start24$elite_eight,
+                            start24$sweet_sixteen,
+                            start24$round_of_32,
+                            start24$round_of_64,
                             sep = "/")
-start23 <- arrange(start23, path)
+start24 <- arrange(start24, path)
 ```
 
 ```{r}
@@ -273,17 +383,64 @@ most_common_values <- function(vectors) {
 
 asdf <- most_common_values(result)
 
-calculate_mode <- function(x) {
-  unique_x <- unique(x)
-  freq <- tabulate(match(x, unique_x))
-  mode <- unique_x[which.max(freq)]
-  return(mode)
-}
-
-modes <- apply(result, 1, calculate_mode)
 ```
 
 
 
 
+```{r}
+list1 <- list()
+for (i in 1:dim(start23)[1]) {
+  home <- as.character(start23[i, 2])
+  away <- as.character(start23[i, 9])
+  thing <- c(start23[i, 25], start23[i, 26])
+  names(thing) <- c(home, away)
+  list1[[as.character(start23[i, 27])]] <-
+    thing
+}
 
+list2 <- list()
+for (i in seq(1, length(list1), by = 2)) {
+  if (i + 1 <= length(list1)) {
+    list2 <- c(list2, list(c(list1[[i]], list1[[i + 1]])))
+  } else {
+    list2 <- c(list2, list(list1[[i]]))
+  }
+}
+
+list3 <- list()
+for (i in seq(1, length(list2), by = 2)) {
+  if (i + 1 <= length(list2)) {
+    list3 <- c(list3, list(c(list2[[i]], list2[[i + 1]])))
+  } else {
+    list3 <- c(list3, list(list2[[i]]))
+  }
+}
+
+list4 <- list()
+for (i in seq(1, length(list3), by = 2)) {
+  if (i + 1 <= length(list3)) {
+    list4 <- c(list4, list(c(list3[[i]], list3[[i + 1]])))
+  } else {
+    list4 <- c(list4, list(list3[[i]]))
+  }
+}
+
+list5 <- list()
+for (i in seq(1, length(list4), by = 2)) {
+  if (i + 1 <= length(list4)) {
+    list5 <- c(list5, list(c(list4[[i]], list4[[i + 1]])))
+  } else {
+    list5 <- c(list5, list(list4[[i]]))
+  }
+}
+```
+
+## "Upsets" approach
+Given some ranking, we can model whether or not an upset happens using
+a logistic regression or some other binary classifier.
+```{r}
+
+```
+
+## The End
