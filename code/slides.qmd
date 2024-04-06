@@ -7,40 +7,195 @@ execute:
   embed-resources: true
 ---
 
-# How does one begin a Basketball Analytics Project?
+## History of NBA Box Score
 
-# Data Acquisition
+* 1946-1947: Inaugural season
+
+PTS, AST, FG/FGM, FGA, FG\%, FTM, FTA, FT\%, PF
+
+* 1950-1951: 
+TRB/REB
+
+* 1951-1952:
+MP
+
+* 1973-1974:
+ORB/OREB, DRB/DREB, STL, BLK
+
+* 1977-1978:
+TOV
+
+* 1979-1980: Three-point line is introduced to the NBA.
+2P/2PM, 2PA, 3P/3PM, 3PA
+
+* 1996-1997: Shot distance tracking is introduced.
+
+# Acquiring Data
 ## Basketball Reference
 
-knitr::include_url("https://www.basketball-reference.com")
+```{r include = FALSE}
+library(webshot)
+webshot::install_phantomjs()
+webshot("https://www.basketball-reference.com", "r.png", cliprect = "viewport")
+```
+## Loading Data through Basketball Reference
 
 
+![Basketball Reference.](../reference.png)
 
 
-# sportsdataverse
+## Packages for NBA Analysis
 
 The SportsDataverse is a collection of R packages that can be used for a 
 variety of sports. Below are the SportsDataverse packages that can be used for 
 basketball analytics:
 
 * [hoopR](https://hoopr.sportsdataverse.org)
+
 * [wehoop](https://wehoop.sportsdataverse.org/)
 * [sportyR](https://sportyr.sportsdataverse.org/)
-
-## Installing the collection
 
 ```{r include = FALSE}
 Sys.setenv("VROOM_CONNECTION_SIZE" = 500000)
 ```
 
-```{r message = FALSE, warning = FALSE, output = FALSE}
+```{r include = FALSE, message = FALSE, warning = FALSE, output = FALSE}
 if (!requireNamespace('devtools', quietly = TRUE)){
   install.packages('devtools')
 }
 devtools::install_github(repo = "sportsdataverse/sportsdataverse-R")
 ```
 
-## hoopR: Clustering
+## hoopR: Play-By-Play Data
+
+
+
+
+## Four Factors
+```{r}
+library(hoopR)
+TEAM <- nba_leaguegamelog(league_id = '00', season = year_to_season(
+  most_recent_nba_season() - 1))$LeagueGameLog %>% 
+  rename(TEAM = TEAM_ABBREVIATION) %>% 
+  separate(MIN, c("MIN", "SEC"), ":") %>% 
+  group_by(TEAM) %>% 
+  reframe(P2A = sum(as.numeric(FGM) - as.numeric(FG3M)), 
+         P2M = sum(as.numeric(FGA) - as.numeric(FG3A)), 
+         P3A = sum(as.numeric(FG3A)), P3M = sum(as.numeric(FG3M)),
+         FTA = sum(as.numeric(FTA)), FTM = sum(as.numeric(FTM)), 
+         OREB = sum(as.numeric(OREB)), DREB = sum(as.numeric(DREB)), 
+         TOV = sum(as.numeric(TOV)),
+         MIN = sum(as.numeric(MIN)))
+OPP <- nba_leaguegamelog(league_id = '00', season = year_to_season(
+  most_recent_nba_season() - 1))$LeagueGameLog %>% 
+  separate(MATCHUP, c("OPP", "vs", "TEAM"), " ") %>% 
+  separate(MIN, c("MIN", "SEC"), ":") %>% 
+  group_by(TEAM) %>% 
+  reframe(P2A = sum(as.numeric(FGM) - as.numeric(FG3M)), 
+         P2M = sum(as.numeric(FGA) - as.numeric(FG3A)), 
+         P3A = sum(as.numeric(FG3A)), P3M = sum(as.numeric(FG3M)),
+         FTA = sum(as.numeric(FTA)), FTM = sum(as.numeric(FTM)), 
+         OREB = sum(as.numeric(OREB)), DREB = sum(as.numeric(DREB)), 
+         TOV = sum(as.numeric(TOV)),
+         MIN = sum(as.numeric(MIN))) 
+  
+
+out <- fourfactors(TEAM, OPP)
+plot(out)
+```
+```{r}
+selTeams <- c(2,6,10,11)
+FF <- fourfactors(Tbox[selTeams,], Obox[selTeams,])
+plot(FF)
+```
+
+```{r}
+Tbox[selTeams,]
+```
+
+```{r}
+yeah <- nba_leaguegamelog(league_id = '00', season = year_to_season(
+  most_recent_nba_season() - 1))$LeagueGameLog %>% 
+  separate(MATCHUP, c("OPP", "vs", "TEAM"), " ")
+```
+
+
+## Assist Network
+
+```{r include = FALSE}
+library(tidyverse)
+library(hoopR)
+library(BasketballAnalyzeR)
+pbp <- load_nba_pbp(seasons = most_recent_nba_season())
+player_names <- load_nba_player_box(seasons = most_recent_nba_season()) %>% 
+  filter(team_location == "Boston") %>% 
+  group_by(athlete_id) %>% 
+  summarize(athlete_id = first(athlete_id), 
+            athlete_display_name = first(athlete_display_name))
+```
+
+```{r echo=FALSE}
+bos_id <- first(pbp %>% 
+                  filter(home_team_abbrev == 'BOS') %>% 
+                  select(home_team_id)) %>% 
+  as.numeric()
+bos_pbp <- pbp %>% filter(team_id == bos_id)
+bos_assists <- bos_pbp %>% filter(grepl("assist", text)) 
+assistee_count <- bos_assists %>%
+  count(athlete_id_1)
+assister_count <- bos_assists %>%
+  count(athlete_id_2)
+bos_assists <- bos_assists %>%
+  filter(athlete_id_1 %in% 
+           (assistee_count %>% arrange(desc(n)) %>% slice(1:8) %>% 
+           select(athlete_id_1))[[1]],
+         athlete_id_2 %in%
+           (assister_count %>% arrange(desc(n)) %>% slice(1:8) %>% 
+           select(athlete_id_2))[[1]])
+
+bos_assists <- left_join(bos_assists, player_names, by = join_by(athlete_id_1 == athlete_id))
+bos_assists <- left_join(bos_assists, player_names, by = join_by(athlete_id_2 ==
+athlete_id))
+
+out <- assistnet(bos_assists, "athlete_display_name.y", "athlete_display_name.x", "score_value", "type_text")
+plot(out, layout="circle", edge.thr=30)
+```
+
+## Expected Points
+```{r echo=FALSE}
+bos_shots <- bos_pbp %>% filter(shooting_play == TRUE) %>% 
+  filter(!grepl("Free Throw", type_text)) %>% 
+  mutate(x = abs(coordinate_x_raw - 25), 
+         y = coordinate_y_raw,
+         points = score_value,
+         event_type = if_else(scoring_play, "shot", "miss"),
+         shot_distance = as.integer(sqrt(x**2 + y**2)))
+bos_shots <- left_join(bos_shots, player_names, 
+                       by = join_by(athlete_id_1 == athlete_id)) %>% 
+  rename(player = athlete_display_name) 
+bos_shots_subset <- subset(bos_shots, shot_distance < 35)
+pl <- c("Sam Hauser", "Al Horford", "Derrick White",
+        "Jaylen Brown", "Jayson Tatum", "Jrue Holiday",
+        "Kristaps Porzingis", "Payton Pritchard")
+
+mypal <- colorRampPalette(c("red", "green"))
+expectedpts(data = data.frame(bos_shots_subset), players=pl, bw=10, 
+            col.team="gray", palette=mypal,
+            col.hline="gray")
+```
+
+## BasketballAnalyzeR: Shot Chart
+
+```{r}
+tatum_shots_subset <- bos_shots_subset %>% filter(player == "Jayson Tatum") %>% 
+  mutate(coordinate_x_adj = coordinate_x_raw - 25,
+    coordinate_y_adj = coordinate_y_raw - 41.75,
+    result = as.factor(if_else(event_type == "shot", "made", "missed")))
+shotchart(data = data.frame(tatum_shots_subset), x = "coordinate_x_adj",
+          y = "coordinate_y_adj", scatter=TRUE, z = "result")
+```
+
+## BasketballAnalyzeR: Shot Chart
 ```{r}
 library(hoopR)
 library(tidyverse)
@@ -76,72 +231,26 @@ fviz_cluster(res.km, data = fg_pct_stats,
 ```
 
 
-## BasketballAnalyzeR: Assist Network
-```{r}
-library(BasketballAnalyzeR)
-PbP <- PbPmanipulation(PbP.BDB)
-PbP.BOS <- subset(PbP, team == "BOS")
-out <- assistnet(PbP.BOS)
-plot(out, layout = "circle", edge.thr = 30, node.col = "FGM_ASTp", 
-     node.size = "ASTPTS")
-```
-
-## ncaahoopR: Assist Network
-```{r}
-devtools::install_github("lbenz730/ncaahoopR")
-library(ncaahoopR)
-assist_net(team = "Yale", node_col = "royalblue4", season = "2017-18")
-```
-
-
-
-
-
-## wehoop
-```{r, warning = FALSE}
-library(wehoop)
-```
-
-## nbastatR and sportyR
-```{r, include = FALSE}
-devtools::install_github("abresler/nbastatR")
-library(nbastatR)
-library(sportyR)
-
-width = 50
-height = 94 / 2
-key_height = 19
-inner_key_width = 12
-outer_key_width = 16
-backboard_width = 6
-backboard_offset = 4
-neck_length = 0.5
-hoop_radius = 0.75
-hoop_center_y = backboard_offset + neck_length + hoop_radius
-three_point_radius = 23.75
-three_point_side_radius = 22
-three_point_side_height = 14
-
-gsw <- teams_shots(teams = "Golden State Warriors", seasons = 2023, 
-                   season_types = "Playoffs")
-
-curry <- gsw %>% filter(namePlayer == "Stephen Curry") %>% 
-  mutate(x = as.numeric(as.character(locationX)) / 10, 
-         y = as.numeric(as.character(locationY)) / 10 - height + hoop_center_y,
-         z = ifelse(typeEvent == "Missed Shot", 1, 0),
-         factor_x = as.character(floor(x) %% 10),
-         factor_y = as.character(floor(y) %% 10))
-```
-```{r}
-geom_basketball(league = "NBA", rotation = 270, display_range = "offense") +
-  stat_binhex(data = curry, aes(x, y))
-```
-
 # March Madness
+
+## What is the probability of a perfect bracket?
+
+Hint: how many games are there in the tournament not including the First Four,
+and how many possible outcomes are there for each game?
+
+Answer: $2^{63}$ or $9,223,372,036,854,775,808$
+
 
 ## Ranking by some metric
 We can rank the teams with some metric, then for each matchup, we predict
 that the better team wins. Then we needn't care about probability.
+Example:
+![KenPom.](../kenpom.png)
+
+Pros:
+- We can pick the best team at each stage
+Cons:
+- Doesn't account for differences in playstyles
 
 ## "Probabilistic" approach
 If we choose not to assume a strict ranking of teams, the
@@ -150,297 +259,34 @@ In other words, we do not assume transitivity of matchup outcomes:
 Team A is favored against Team B and
 Team B is favored against Team C doesn't imply
 Team A is favored against Team C.
+Pros:
+- Can account for differences in playstyles
+Cons:
+- Not practical to compute (9,223,372,036,854,775,808 different possibilities
+to consider)
 
 ## Simulation approach
 We can model the number of points scored by each team with a Poisson
 regression.
+Pros:
+- Can account for differences in playstyles
 
-```{r}
-# Load necessary library
-library(stats)
-
-# Generate some example data
-set.seed(123)
-data <- data.frame(
-  x = 1:100,                 # Independent variable
-  y = rpois(100, lambda = 2) # Dependent variable (counts)
-)
-
-# Fit Poisson regression model
-model <- glm(y ~ x, data = data, family = "poisson")
-
-# Summary of the model
-summary(model)
-
-# Predictions from the model
-predictions <- predict(model, type = "response")
-
-sim <- c()
-
-for (pred in predictions) {
-  sim <- c(sim, rpois(1, lambda = pred))
-}
-
-# Plotting the results
-plot(data$x, data$y, main = "Poisson Regression", xlab = "X", ylab = "Y")
-lines(data$x, predictions, col = "red", lwd = 2)
-plot(data$x, sim)
-```
-
-
-
-```{r}
-scoring <- data.frame(espn_mbb_standings(2003))
-tournament <- load_mbb_schedule(seasons = 2003) %>% 
-  filter(grepl("Men's Basketball Championship", notes_headline) & 
-           !grepl("First Four", notes_headline))
-sample <- merge(scoring, tournament, by.x = "team_id", by.y = "home_id")
-for (year in c(2016:2022)) {
-  scoring <- data.frame(espn_mbb_standings(year))
-  tournament <- load_mbb_schedule(seasons = year) %>% 
-    filter(grepl("Men's Basketball Championship", notes_headline) |
-             grepl("MEN'S BASKETBALL CHAMPIONSHIP", notes_headline), 
-             !grepl("First Four", notes_headline),
-             !grepl("FIRST FOUR", notes_headline))
-  sample <- rbind(sample,
-                  merge(merge(tournament, scoring, by.x = "home_id", 
-                        by.y = "team_id"), scoring, by.x = "away_id", 
-                        by.y = "team_id"))
-}
-```
-
-
-
-
-
-
-
-
-
-
-```{r}
-library(hoopR)
-library(data.tree)
-library(treemap)
-library(tidyverse)
-tournament24 <- load_mbb_schedule(seasons = 2024) %>% 
-  filter(grepl("Men's Basketball Championship", notes_headline) & 
-           !grepl("First Four", notes_headline)) %>% 
-  select(notes_headline, home_abbreviation, home_conference_id, home_score, 
-         home_winner, home_current_rank, home_linescores, home_records,
-         away_abbreviation, away_conference_id, away_score, away_winner,
-         away_current_rank, away_linescores, away_records
-         ) %>% 
-  mutate(final_four = case_when(grepl("Midwest", notes_headline) |
-                                grepl("West", notes_headline) |
-                                home_abbreviation == "CONN" & 
-                                away_abbreviation == "MIA" ~ "midwest_west",
-                                grepl("South", notes_headline) |
-                                grepl("East", notes_headline) |
-                                home_abbreviation == "SDSU" &
-                                away_abbreviation == "FAU" ~ "south_east"),
-         # The pairings are different for each year
-         elite_eight = case_when(
-                            grepl("Midwest", notes_headline) ~ "midwest",
-                            grepl("South", notes_headline) ~ "south",
-                            grepl("West", notes_headline) ~ "west",
-                            grepl("East", notes_headline) ~ "east"),
-         sweet_sixteen = ifelse(grepl("Sweet 16", notes_headline) |
-                                grepl("2nd Round", notes_headline) |
-                                grepl("1st Round", notes_headline),
-                                case_when(
-                                  home_current_rank %in% 
-                                    c(1, 4, 5, 8, 9, 12) ~ 1,
-                                  home_current_rank %in% 
-                                    c(2, 3, 6, 7, 10, 11) ~ 2), NA),
-         round_of_32 = ifelse(grepl("2nd Round", notes_headline) |
-                              grepl("1st Round", notes_headline),
-                              case_when(
-                                 home_current_rank %in% c(1, 8, 9) ~ 1,
-                                 home_current_rank %in% c(2, 7, 10) ~ 2,
-                                 home_current_rank %in% c(3, 6, 11) ~ 3,
-                                 home_current_rank %in% c(4, 5, 12) ~ 4), NA),
-         round_of_64 = ifelse(grepl("1st Round", notes_headline),
-                         home_current_rank,
-                         NA)
-         )
-
-
-start24 <- tournament24 %>% 
-  filter(home_abbreviation != "TBD") %>% 
-  mutate(home_records = str_extract_all(home_records, "\\d+"),
-         away_records = str_extract_all(away_records, "\\d+"),
-         home_overall_wins = 
-           as.numeric(sapply(home_records, function(x) x[[1]])),
-         home_overall_losses = 
-           as.numeric(sapply(home_records, function(x) x[[2]])),
-         away_overall_wins = 
-           as.numeric(sapply(away_records, function(x) x[[1]])),
-         away_overall_losses = 
-           as.numeric(sapply(away_records, function(x) x[[2]])),
-         home_p = as.numeric(home_overall_wins) / 
-           (as.numeric(home_overall_wins) + as.numeric(home_overall_losses)),
-         away_p = as.numeric(away_overall_wins) / 
-           (as.numeric(away_overall_wins) + as.numeric(away_overall_losses)))
-start24$path <- paste("national", 
-                            start24$final_four, 
-                            start24$elite_eight,
-                            start24$sweet_sixteen,
-                            start24$round_of_32,
-                            start24$round_of_64,
-                            sep = "/")
-start24 <- arrange(start24, path)
-```
-
-```{r}
-log5 <- function(p, q) p * (1 - q) / (p + q - 2 * p * q)
-simulate_tournament <- function(df) {
-  results <- df %>% select(path, home_abbreviation, away_abbreviation, home_p,
-                            away_p)
-  path <- unique(df$path)
-  while (nrow(df) > 1) {
-    current_matches <- df[df$path == path, ]
-  
-    winners <- as.list(apply(current_matches, 1, function(match) {
-      winner <- sample(c("home", "away"), size = 1, prob = c(match["home_p"], match["away_p"]))
-      winner <- c(match[paste(winner, "_abbreviation", sep = "")], match[paste(winner, "_p", 
-                                                                  sep = "")])
-      winner
-    }))
-    
-    winners_df <- data.frame(winner = unlist(winners))
-    
-    winners_df <- split(winners_df$winner, 
-                        as.integer(gl(nrow(winners_df), 2, nrow(winners_df))))
-    
-    winners_df <- as.data.frame(do.call(rbind, winners_df))
-    
-    colnames(winners_df) <- c("winner", "p")
-    
-    df <- cbind(current_matches, winners_df) %>% 
-      mutate(path = sub("/[^/]*$", "", path))
-    
-    df <- df %>%
-      group_by(path) %>%
-      summarize(home_abbreviation = first(winner),
-                away_abbreviation = nth(winner, 2),
-                home_p = first(p),
-                away_p = nth(p, 2))
-    results <- rbind(results, df)
-    path <- unique(df$path)
-  }
-  
-  champion <- sample(c(results[63, 2], results[63, 3]), 1, 
-                     prob = c(results[63, 4], results[63, 5]))
-  
-  
-  results <- rbind(results, list("champion", as.character(champion), NA, NA, NA))
-  
-  new_vector <- c()
-
-  for (i in 33:64) {
-    new_vector <- c(new_vector, results[i, 2], results[i, 3])
-  }
-  return(new_vector)
-}
-
-result <- simulate_tournament(start23)
-```
-
-
-
-
-
-```{r}
-result <- replicate(100, simulate_tournament(start23))
-most_common_values <- function(vectors) {
-  ws <- c()
-  ls <- c()
-  for (i in 1:dim(vectors)[1]) {
-    winners <- sort(table(unlist(vectors[i,])), decreasing = TRUE)
-    ws <- c(ws, names(winners)[1])
-    ls <- c(ls, names(winners)[2])
-  }
-  
-  for (i in rev(ws)) {
-    index = 0
-    if (i %in% ws[1:32]) {
-      index <- which(ws == i)[1]
-    }
-    else {
-      index <- which(ls == i)[i]
-    }
-    ws[index] = i
-    ws[32 + ceiling(index / 2)] = i
-    ws[48 + ceiling(index / 4)] = i
-    ws[56 + ceiling(index / 8)] = i
-    ws[60 + ceiling(index / 16)] = i
-    ws[62 + ceiling(index / 32)] = i
-  }
-  
-  return(ws)
-}
-
-asdf <- most_common_values(result)
-
-```
-
-
-
-
-```{r}
-list1 <- list()
-for (i in 1:dim(start23)[1]) {
-  home <- as.character(start23[i, 2])
-  away <- as.character(start23[i, 9])
-  thing <- c(start23[i, 25], start23[i, 26])
-  names(thing) <- c(home, away)
-  list1[[as.character(start23[i, 27])]] <-
-    thing
-}
-
-list2 <- list()
-for (i in seq(1, length(list1), by = 2)) {
-  if (i + 1 <= length(list1)) {
-    list2 <- c(list2, list(c(list1[[i]], list1[[i + 1]])))
-  } else {
-    list2 <- c(list2, list(list1[[i]]))
-  }
-}
-
-list3 <- list()
-for (i in seq(1, length(list2), by = 2)) {
-  if (i + 1 <= length(list2)) {
-    list3 <- c(list3, list(c(list2[[i]], list2[[i + 1]])))
-  } else {
-    list3 <- c(list3, list(list2[[i]]))
-  }
-}
-
-list4 <- list()
-for (i in seq(1, length(list3), by = 2)) {
-  if (i + 1 <= length(list3)) {
-    list4 <- c(list4, list(c(list3[[i]], list3[[i + 1]])))
-  } else {
-    list4 <- c(list4, list(list3[[i]]))
-  }
-}
-
-list5 <- list()
-for (i in seq(1, length(list4), by = 2)) {
-  if (i + 1 <= length(list4)) {
-    list5 <- c(list5, list(c(list4[[i]], list4[[i + 1]])))
-  } else {
-    list5 <- c(list5, list(list4[[i]]))
-  }
-}
-```
 
 ## "Upsets" approach
+Without doing any analysis or coding, it 
 Given some ranking, we can model whether or not an upset happens using
 a logistic regression or some other binary classifier.
-```{r}
+Pros:
+- Addresses the main issue in most peoples' brackets
+Cons:
 
-```
+Cons:
+
+## Vibes
+
+Pros:
+- Does not take as much time
+Cons:
+- Lame
 
 ## The End
