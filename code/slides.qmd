@@ -9,8 +9,7 @@ execute:
 
 ## History of NBA Box Score
 
-* 1946-1947: Inaugural season
-
+* 1946-1947: 
 PTS, AST, FG/FGM, FGA, FG\%, FTM, FTA, FT\%, PF
 
 * 1950-1951: 
@@ -25,15 +24,46 @@ ORB/OREB, DRB/DREB, STL, BLK
 * 1977-1978:
 TOV
 
-* 1979-1980: Three-point line is introduced to the NBA.
-2P/2PM, 2PA, 3P/3PM, 3PA
+* 1979-1980: 2P/2PM, 2PA, 3P/3PM, 3PA
 
 * 1996-1997: Shot distance tracking is introduced.
+
+## Four Factors
+
+
+Offense:
+$eFG\% = \frac{ (2PM)_T + 1.5 \times (3PM)_T }{ (2PA)_T + (3PA)_T}$
+
+$TO = \frac{TOV_T}{POSS_T}$ 
+
+$REB\% = \frac{OREB_T}{OREB_T + DREB_O}$
+
+$FT$ Rate $= \frac{FTM_T}{(2PA)_T + (3PA)_T}$
+
+The Four Factors by Kubatko, J., Oliver, D., Pelton, K., and Rosenbaum, 
+D. T. (2007). A
+starting point for analyzing basketball statistics}. Journal of Quantitative 
+Analysis in Sports, 3(3):1–22
+
+## Four Factors
+
+
+Defense:
+$eFG\% = \frac{ (2PM)_O + 1.5 \times (3PM)_O }{ (2PA)_O + (3PA)_O}$
+
+$TO = \frac{TOV_O}{POSS_O}$
+
+$REB\% = \frac{DREB_T}{OREB_O + DREB_T}$
+
+$FT$ Rate $\frac{FTM_O}{(2PA)_O + (3PA)_O}$
+
+
+
 
 # Acquiring Data
 ## Basketball Reference
 
-```{r include = FALSE}
+```{r echo = FALSE}
 library(webshot)
 webshot::install_phantomjs()
 webshot("https://www.basketball-reference.com", "r.png", cliprect = "viewport")
@@ -41,88 +71,66 @@ webshot("https://www.basketball-reference.com", "r.png", cliprect = "viewport")
 ## Loading Data through Basketball Reference
 
 
-![Basketball Reference.](../reference.png)
+![Basketball Reference.](../pictures/reference.png)
 
-
-## Packages for NBA Analysis
-
-The SportsDataverse is a collection of R packages that can be used for a 
-variety of sports. Below are the SportsDataverse packages that can be used for 
-basketball analytics:
-
+## Package for Acquiring Data
 * [hoopR](https://hoopr.sportsdataverse.org)
-
-* [wehoop](https://wehoop.sportsdataverse.org/)
-* [sportyR](https://sportyr.sportsdataverse.org/)
 
 ```{r include = FALSE}
 Sys.setenv("VROOM_CONNECTION_SIZE" = 500000)
 ```
 
-```{r include = FALSE, message = FALSE, warning = FALSE, output = FALSE}
+```{r message = FALSE, warning = FALSE, output = FALSE}
 if (!requireNamespace('devtools', quietly = TRUE)){
   install.packages('devtools')
 }
-devtools::install_github(repo = "sportsdataverse/sportsdataverse-R")
+devtools::install_github("sportsdataverse/sportsdataverse-R")
 ```
 
-## hoopR: Play-By-Play Data
+## Package for Visualizing and Analyzing Data
+* [BasketballAnalyzeR](https://github.com/sndmrc/BasketballAnalyzeR?tab=readme-ov-file)
 
-
-
+```{r}
+devtools::install_github("sndmrc/BasketballAnalyzeR")
+```
 
 ## Four Factors
-```{r}
+```{r echo = FALSE}
+library(tidyverse)
 library(hoopR)
+library(BasketballAnalyzeR)
 TEAM <- nba_leaguegamelog(league_id = '00', season = year_to_season(
   most_recent_nba_season() - 1))$LeagueGameLog %>% 
-  rename(TEAM = TEAM_ABBREVIATION) %>% 
-  separate(MIN, c("MIN", "SEC"), ":") %>% 
-  group_by(TEAM) %>% 
-  reframe(P2A = sum(as.numeric(FGM) - as.numeric(FG3M)), 
-         P2M = sum(as.numeric(FGA) - as.numeric(FG3A)), 
-         P3A = sum(as.numeric(FG3A)), P3M = sum(as.numeric(FG3M)),
-         FTA = sum(as.numeric(FTA)), FTM = sum(as.numeric(FTM)), 
-         OREB = sum(as.numeric(OREB)), DREB = sum(as.numeric(DREB)), 
-         TOV = sum(as.numeric(TOV)),
-         MIN = sum(as.numeric(MIN)))
+  rename(Team = TEAM_ABBREVIATION) %>% 
+  group_by(Team) %>% 
+  reframe(P2A = sum(as.integer(FGA) - as.integer(FG3A)), 
+         P2M = sum(as.integer(FGM) - as.integer(FG3M)), 
+         P3A = sum(as.integer(FG3A)), P3M = sum(as.integer(FG3M)),
+         FTA = sum(as.integer(FTA)), FTM = sum(as.integer(FTM)), 
+         OREB = sum(as.integer(OREB)), DREB = sum(as.integer(DREB)), 
+         TOV = sum(as.integer(TOV)),
+         MIN = sum(as.integer(MIN) / 5))
 OPP <- nba_leaguegamelog(league_id = '00', season = year_to_season(
   most_recent_nba_season() - 1))$LeagueGameLog %>% 
-  separate(MATCHUP, c("OPP", "vs", "TEAM"), " ") %>% 
-  separate(MIN, c("MIN", "SEC"), ":") %>% 
-  group_by(TEAM) %>% 
-  reframe(P2A = sum(as.numeric(FGM) - as.numeric(FG3M)), 
-         P2M = sum(as.numeric(FGA) - as.numeric(FG3A)), 
-         P3A = sum(as.numeric(FG3A)), P3M = sum(as.numeric(FG3M)),
-         FTA = sum(as.numeric(FTA)), FTM = sum(as.numeric(FTM)), 
-         OREB = sum(as.numeric(OREB)), DREB = sum(as.numeric(DREB)), 
-         TOV = sum(as.numeric(TOV)),
-         MIN = sum(as.numeric(MIN))) 
+  separate(MATCHUP, c("OPP", "vs", "Team"), " ") %>% 
+  group_by(Team) %>% 
+  reframe(P2A = sum(as.integer(FGA) - as.integer(FG3A)), 
+         P2M = sum(as.integer(FGM) - as.integer(FG3M)), 
+         P3A = sum(as.integer(FG3A)), P3M = sum(as.integer(FG3M)),
+         FTA = sum(as.integer(FTA)), FTM = sum(as.integer(FTM)), 
+         OREB = sum(as.integer(OREB)), DREB = sum(as.integer(DREB)), 
+         TOV = sum(as.integer(TOV)),
+         MIN = sum(as.integer(MIN) / 5)) 
   
-
-out <- fourfactors(TEAM, OPP)
+selTeams <- c(2, 3, 20, 23, 28)
+out <- fourfactors(TEAM[selTeams,], OPP[selTeams,])
 plot(out)
 ```
-```{r}
-selTeams <- c(2,6,10,11)
-FF <- fourfactors(Tbox[selTeams,], Obox[selTeams,])
-plot(FF)
-```
-
-```{r}
-Tbox[selTeams,]
-```
-
-```{r}
-yeah <- nba_leaguegamelog(league_id = '00', season = year_to_season(
-  most_recent_nba_season() - 1))$LeagueGameLog %>% 
-  separate(MATCHUP, c("OPP", "vs", "TEAM"), " ")
-```
 
 
-## Assist Network
+## Shot Chart
 
-```{r include = FALSE}
+```{r echo = FALSE}
 library(tidyverse)
 library(hoopR)
 library(BasketballAnalyzeR)
@@ -134,12 +142,34 @@ player_names <- load_nba_player_box(seasons = most_recent_nba_season()) %>%
             athlete_display_name = first(athlete_display_name))
 ```
 
-```{r echo=FALSE}
+```{r echo = FALSE}
 bos_id <- first(pbp %>% 
                   filter(home_team_abbrev == 'BOS') %>% 
                   select(home_team_id)) %>% 
   as.numeric()
 bos_pbp <- pbp %>% filter(team_id == bos_id)
+bos_shots <- bos_pbp %>% filter(shooting_play == TRUE) %>% 
+  filter(!grepl("Free Throw", type_text)) %>% 
+  mutate(x = abs(coordinate_x_raw - 25), 
+         y = coordinate_y_raw,
+         points = score_value,
+         event_type = if_else(scoring_play, "shot", "miss"),
+         shot_distance = as.integer(sqrt(x**2 + y**2)))
+bos_shots <- left_join(bos_shots, player_names, 
+                       by = join_by(athlete_id_1 == athlete_id)) %>% 
+  rename(player = athlete_display_name) 
+bos_shots_subset <- subset(bos_shots, shot_distance < 35)
+tatum_shots_subset <- bos_shots_subset %>% filter(player == "Jayson Tatum") %>% 
+  mutate(coordinate_x_adj = coordinate_x_raw - 25,
+    coordinate_y_adj = coordinate_y_raw - 41.75,
+    result = as.factor(if_else(event_type == "shot", "made", "missed")))
+shotchart(data = data.frame(tatum_shots_subset), x = "coordinate_x_adj",
+          y = "coordinate_y_adj", scatter=TRUE, z = "result")
+```
+
+## Assist Network
+
+```{r echo=FALSE}
 bos_assists <- bos_pbp %>% filter(grepl("assist", text)) 
 assistee_count <- bos_assists %>%
   count(athlete_id_1)
@@ -162,18 +192,34 @@ plot(out, layout="circle", edge.thr=30)
 ```
 
 ## Expected Points
+
+Expected value: $y_i$ are all the possible values of a discrete variable $Y$.
+
+$E(Y) = \sum_{i = 1}^n y_i P(Y = y_i)$
+
+## Expected Points
+<details closed>
+<summary>Let $Y$ be the points resulting from a 2-point shot attempt.
+What are the possible values $y_i$ of $Y$?</summary>
+$\{0, 2\}$
+</details>
+<details closed>
+<summary>In this context, what is $P(Y = y_i)$?</summary>
+2-point field goal percentage
+</details>
+<details closed>
+<summary>Jayson Tatum's 2PFG\% this season is 54\%. What is his expected points
+on a 2-point field goal attempt?</summary>
+1.08
+</details>
+
+## Expected Points
+Conditional expected value: let $X$ be some variable that changes the 
+probability of $y_i$.
+
+$E(Y | X) = \sum_{i = 1}^n y_i P(Y = y_i | X)$.
+
 ```{r echo=FALSE}
-bos_shots <- bos_pbp %>% filter(shooting_play == TRUE) %>% 
-  filter(!grepl("Free Throw", type_text)) %>% 
-  mutate(x = abs(coordinate_x_raw - 25), 
-         y = coordinate_y_raw,
-         points = score_value,
-         event_type = if_else(scoring_play, "shot", "miss"),
-         shot_distance = as.integer(sqrt(x**2 + y**2)))
-bos_shots <- left_join(bos_shots, player_names, 
-                       by = join_by(athlete_id_1 == athlete_id)) %>% 
-  rename(player = athlete_display_name) 
-bos_shots_subset <- subset(bos_shots, shot_distance < 35)
 pl <- c("Sam Hauser", "Al Horford", "Derrick White",
         "Jaylen Brown", "Jayson Tatum", "Jrue Holiday",
         "Kristaps Porzingis", "Payton Pritchard")
@@ -184,109 +230,149 @@ expectedpts(data = data.frame(bos_shots_subset), players=pl, bw=10,
             col.hline="gray")
 ```
 
-## BasketballAnalyzeR: Shot Chart
 
-```{r}
-tatum_shots_subset <- bos_shots_subset %>% filter(player == "Jayson Tatum") %>% 
-  mutate(coordinate_x_adj = coordinate_x_raw - 25,
-    coordinate_y_adj = coordinate_y_raw - 41.75,
-    result = as.factor(if_else(event_type == "shot", "made", "missed")))
-shotchart(data = data.frame(tatum_shots_subset), x = "coordinate_x_adj",
-          y = "coordinate_y_adj", scatter=TRUE, z = "result")
-```
+## Cluster Analysis
 
-## BasketballAnalyzeR: Shot Chart
-```{r}
-library(hoopR)
-library(tidyverse)
-fg_pct_stats <- nba_leaguedashptteamdefend(league_id = '00', 
-                           season = year_to_season(most_recent_nba_season() - 1))[[1]] %>% 
-  select(TEAM_ABBREVIATION, D_FG_PCT, NORMAL_FG_PCT) %>% 
-  as.data.frame()
-rownames(fg_pct_stats) <- fg_pct_stats$TEAM_ABBREVIATION
-fg_pct_stats <- fg_pct_stats %>% select(-TEAM_ABBREVIATION) %>% 
-  mutate(D_FG_PCT = as.numeric(D_FG_PCT),
-                               NORMAL_FG_PCT = as.numeric(NORMAL_FG_PCT))
-```
-
-## hoopR: Regression
-```{r}
-library(hoopR)
-library(tidyverse)
-library(factoextra)
-fg_pct_stats <- nba_leaguedashptteamdefend(league_id = '00', 
-                           season = year_to_season(most_recent_nba_season() - 1))[[1]] %>% 
-  select(TEAM_ABBREVIATION, D_FG_PCT, NORMAL_FG_PCT) %>% 
-  as.data.frame()
-rownames(fg_pct_stats) <- fg_pct_stats$TEAM_ABBREVIATION
-fg_pct_stats <- fg_pct_stats %>% select(-TEAM_ABBREVIATION) %>% 
-  mutate(D_FG_PCT = as.numeric(D_FG_PCT),
-                               NORMAL_FG_PCT = as.numeric(NORMAL_FG_PCT))
-res.km <- kmeans(fg_pct_stats, centers = 3)
-fviz_cluster(res.km, data = fg_pct_stats,
-             palette = c("#2E9FDF", "#00AFBB", "#E7B800"), 
-             geom = "text",
-             ellipse.type = "convex", 
-             ggtheme = theme_bw())
+```{r echo= FALSE}
+TEAM <- nba_leaguegamelog(league_id = '00', season = year_to_season(
+  most_recent_nba_season() - 1))$LeagueGameLog %>% 
+  rename(Team = TEAM_ABBREVIATION) %>% 
+  filter(!is.na(WL)) %>% 
+  mutate(WINS = ifelse(WL == "W", 1, 0)) %>% 
+  group_by(Team) %>% 
+  reframe(TEAM_PTS = sum(as.integer(PTS)), WINS = sum(WINS))
+OPP <- nba_leaguegamelog(league_id = '00', season = year_to_season(
+  most_recent_nba_season() - 1))$LeagueGameLog %>% 
+  separate(MATCHUP, c("OPP", "vs", "Team"), " ") %>% 
+  group_by(Team) %>% 
+  reframe(OPP_PTS = sum(as.integer(PTS)))
+df <- merge(TEAM, OPP, by = "Team")
+kclu2 <- kclustering(df[,-1], labels = df$Team, k=5)
+cluster <- as.factor(kclu2$Subjects$Cluster)
+Xbubble <- data.frame(Team = df$Team, 
+                      TEAM_PTS = df$TEAM_PTS,
+                      OPP_PTS = df$OPP_PTS, cluster,
+                      WINS = df$WINS
+                      )
+labs <- c("TEAM_PTS", "OPP_PTS", "cluster", "WINS")
+bubbleplot(Xbubble, id="Team", x="TEAM_PTS", y="OPP_PTS", 
+           col="cluster", size = "WINS", labels=labs)
 ```
 
 
 # March Madness
 
-## What is the probability of a perfect bracket?
+## How many possible March Madness bracket outcomes are there?
 
-Hint: how many games are there in the tournament not including the First Four,
-and how many possible outcomes are there for each game?
-
+<details closed>
+<summary>Hint: how many games are there in the tournament not including the 
+First Four,
+and how many possible outcomes are there for each game?</summary>
 Answer: $2^{63}$ or $9,223,372,036,854,775,808$
+</details>
 
+## The standard scoring of a bracket is
+
+Round One: 1
+
+Round Two: 2
+
+Sweet Sixteen: 4
+
+Elite Eight: 8
+
+Final Four: 16
+
+Championship: 32
+
+A perfect bracket gets a score of 192.
 
 ## Ranking by some metric
-We can rank the teams with some metric, then for each matchup, we predict
-that the better team wins. Then we needn't care about probability.
+This could be as simple as using AP rankings, or you could develop your own
+metric. You can evaluate your metric based on how it performs on
+past tournaments. 
 Example:
-![KenPom.](../kenpom.png)
+![KenPom.](../pictures/kenpom.png)
 
-Pros:
-- We can pick the best team at each stage
-Cons:
-- Doesn't account for differences in playstyles
+* We can pick the best team at each stage
+* Strict hierarchy is unrealistic and one prediction for a tournament has
+a lot of uncertainty
+
+## How do we model how good a team is?
+
+We can predict the probability of a team winning a certain March Madness game.
+
+<details closed>
+<summary>What are some models that can be used for binary
+classification?</summary>
+Logistic Regression, Decision Trees, Random Forest, SVM, Neural Network, etc.
+</details>
+
+## What are some possible features?
+
 
 ## "Probabilistic" approach
-If we choose not to assume a strict ranking of teams, the
-problem becomes a little more complicated. 
-In other words, we do not assume transitivity of matchup outcomes:
-Team A is favored against Team B and
-Team B is favored against Team C doesn't imply
-Team A is favored against Team C.
-Pros:
-- Can account for differences in playstyles
-Cons:
-- Not practical to compute (9,223,372,036,854,775,808 different possibilities
+Depending on choice of model, it may be possible 
+that the team
+most likely to advance at one stage may be less likely to advance at a future 
+stage.
+Example:
+![FiveThirtyEight.](../pictures/fivethirtyeight.png)
+
+
+## "Probabilistic" approach
+![Basketball Reference.](../pictures/bracket1.png)
+
+* Can account for differences in playstyles
+* Not practical to compute (9,223,372,036,854,775,808 different possibilities
 to consider)
 
+## How do we model how good a team is?
+
+We can predict how many points a team will score in a March Madness game. 
+
+<details closed>
+<summary>What kind of variable can we use to model a count variable?<\summary>
+Poisson or Binomial, Poisson is easier because there is only one parameter.
+<\details>
+
+Regression works for continuous variables that have a support of 
+$(-\infty, \infty)$, so we must use a link function to map the counts to real
+variables. 
+
+## Poisson Regression
+
+For regression, let $Y$ be the number of points scored by the team of interest,
+and let $x_i$ be the $j$th predictor out of $n$.
+
+
+Then $\log(E(Y | x)) = \theta_0 + \theta_1x_1 + \theta_2x_2 + ... + \theta_nx_n$
+
 ## Simulation approach
-We can model the number of points scored by each team with a Poisson
-regression.
-Pros:
-- Can account for differences in playstyles
+
+For each team in a game, we can
+draw from Pois$\lambda)$, where $\lambda$ is the predicted 
+response from our regression for that team's points. The team that scores more
+points advances. We can simulate a tournament as many times as we want. Then
+we can get an idea of how likely a team is to make it to a certain round. Note
+that the most likely bracket may not coincide with the most likely winner.
 
 
-## "Upsets" approach
-Without doing any analysis or coding, it 
-Given some ranking, we can model whether or not an upset happens using
-a logistic regression or some other binary classifier.
-Pros:
-- Addresses the main issue in most peoples' brackets
-Cons:
+![Basketball Reference.](../pictures/bracket2.png)
 
-Cons:
 
-## Vibes
+* Doesn't require as much processing
+* Hard to find optimal bracket
 
-Pros:
-- Does not take as much time
-Cons:
-- Lame
+## Vibes Bracket
+Pick the teams you think will win, or the teams you personally want to win.
+It worked great for UConn students!
+
+Just make sure you don't pick too few or too many upsets.
+T
+
+
+
+
 
 ## The End
