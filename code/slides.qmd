@@ -2,9 +2,10 @@
 title: "Basketball Analytics with R"
 author: "Mathew Chandy"
 execute:
-  echo: true
-  format: revealjs
-  embed-resources: true
+  echo: false
+format: 
+  revealjs:
+    embed-resources: true
 ---
 
 ## History of NBA Box Score
@@ -57,7 +58,10 @@ $REB\% = \frac{DREB_T}{OREB_O + DREB_T}$
 
 $FT$ Rate $\frac{FTM_O}{(2PA)_O + (3PA)_O}$
 
-
+The Four Factors by Kubatko, J., Oliver, D., Pelton, K., and Rosenbaum, 
+D. T. (2007). A
+starting point for analyzing basketball statistics}. Journal of Quantitative 
+Analysis in Sports, 3(3):1–22
 
 
 # Acquiring Data
@@ -66,12 +70,13 @@ $FT$ Rate $\frac{FTM_O}{(2PA)_O + (3PA)_O}$
 ```{r echo = FALSE}
 library(webshot)
 webshot::install_phantomjs()
-webshot("https://www.basketball-reference.com", "r.png", cliprect = "viewport")
+webshot("https://www.basketball-reference.com", "../pictures/r.png", 
+        cliprect = "viewport")
 ```
 ## Loading Data through Basketball Reference
 
 
-![Basketball Reference.](../pictures/reference.png)
+![](../pictures/reference.png)
 
 ## Package for Acquiring Data
 * [hoopR](https://hoopr.sportsdataverse.org)
@@ -291,9 +296,13 @@ A perfect bracket gets a score of 192.
 This could be as simple as using AP rankings, or you could develop your own
 metric. You can evaluate your metric based on how it performs on
 past tournaments. 
-Example:
-![KenPom.](../pictures/kenpom.png)
 
+## Ranking by some metric
+Example:
+![](../pictures/kenpom.png)
+
+
+## Ranking by some metric
 * We can pick the best team at each stage
 * Strict hierarchy is unrealistic and one prediction for a tournament has
 a lot of uncertainty
@@ -310,18 +319,27 @@ Logistic Regression, Decision Trees, Random Forest, SVM, Neural Network, etc.
 
 ## What are some possible features?
 
+<details closed>
+<summary></summary>
+Strength of Schedule, Performance in Recent Games, 
+Performance in Recent Seasons, Injuries/Suspensions, Location,
+Player Matchups, Offensive/Defensive Tendencies
+
+</details>
+
 
 ## "Probabilistic" approach
 Depending on choice of model, it may be possible 
 that the team
 most likely to advance at one stage may be less likely to advance at a future 
 stage.
+
 Example:
-![FiveThirtyEight.](../pictures/fivethirtyeight.png)
+![](../pictures/fivethirtyeight.png)
 
 
 ## "Probabilistic" approach
-![Basketball Reference.](../pictures/bracket1.png)
+![](../pictures/bracket1.png)
 
 * Can account for differences in playstyles
 * Not practical to compute (9,223,372,036,854,775,808 different possibilities
@@ -332,9 +350,9 @@ to consider)
 We can predict how many points a team will score in a March Madness game. 
 
 <details closed>
-<summary>What kind of variable can we use to model a count variable?<\summary>
+<summary>What kind of variable can we use to model a count variable?</summary>
 Poisson or Binomial, Poisson is easier because there is only one parameter.
-<\details>
+</details>
 
 Regression works for continuous variables that have a support of 
 $(-\infty, \infty)$, so we must use a link function to map the counts to real
@@ -343,7 +361,7 @@ variables.
 ## Poisson Regression
 
 For regression, let $Y$ be the number of points scored by the team of interest,
-and let $x_i$ be the $j$th predictor out of $n$.
+and let $x_j$ be the $j$th predictor out of $n$.
 
 
 Then $\log(E(Y | x)) = \theta_0 + \theta_1x_1 + \theta_2x_2 + ... + \theta_nx_n$
@@ -351,28 +369,32 @@ Then $\log(E(Y | x)) = \theta_0 + \theta_1x_1 + \theta_2x_2 + ... + \theta_nx_n$
 ## Simulation approach
 
 For each team in a game, we can
-draw from Pois$\lambda)$, where $\lambda$ is the predicted 
+draw from Pois$(\lambda)$, where $\lambda$ is the predicted 
 response from our regression for that team's points. The team that scores more
 points advances. We can simulate a tournament as many times as we want. Then
 we can get an idea of how likely a team is to make it to a certain round. Note
 that the most likely bracket may not coincide with the most likely winner.
 
+## Simulation approach
+![](../pictures/bracket2.png)
 
-![Basketball Reference.](../pictures/bracket2.png)
-
-
+## Simulation approach
 * Doesn't require as much processing
 * Hard to find optimal bracket
 
 ## Vibes Bracket
 Pick the teams you think will win, or the teams you personally want to win.
-It worked great for UConn students!
+It worked great for UConn students! Just make sure you don't pick too few or too many upsets.
 
-Just make sure you don't pick too few or too many upsets.
-T
+## Picking Upsets
+[NCAA](https://www.ncaa.com/news/basketball-men/bracketiq/2018-03-13/heres-how-pick-march-madness-upsets-according-data)
+Average Number of Upsets:
 
-
-
+* Total Upsets: 8.5
+* First Round: 4.65
+* Second Round: 3.13
+* Elite Eight: 0.31
+* Final Four: 0.10
 
 
 ## The End
