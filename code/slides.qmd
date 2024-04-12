@@ -33,6 +33,7 @@ TOV
 
 
 Offense:
+
 $eFG\% = \frac{ (2PM)_T + 1.5 \times (3PM)_T }{ (2PA)_T + (3PA)_T}$
 
 $TO = \frac{TOV_T}{POSS_T}$ 
@@ -50,6 +51,7 @@ Analysis in Sports, 3(3):1–22
 
 
 Defense:
+
 $eFG\% = \frac{ (2PM)_O + 1.5 \times (3PM)_O }{ (2PA)_O + (3PA)_O}$
 
 $TO = \frac{TOV_O}{POSS_O}$
