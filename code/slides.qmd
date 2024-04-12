@@ -78,6 +78,14 @@ webshot("https://www.basketball-reference.com", "../pictures/r.png",
 
 ![](../pictures/reference.png)
 
+## Tidyverse
+* [tidyverse](https://www.tidyverse.org)
+```{r echo = TRUE, message = FALSE, warning = FALSE, output = FALSE}
+install.packages("tidyverse", repos = "http://cran.us.r-project.org")
+```
+
+
+
 ## Package for Acquiring Data
 * [hoopR](https://hoopr.sportsdataverse.org)
 
@@ -85,7 +93,9 @@ webshot("https://www.basketball-reference.com", "../pictures/r.png",
 Sys.setenv("VROOM_CONNECTION_SIZE" = 500000)
 ```
 
-```{r message = FALSE, warning = FALSE, output = FALSE}
+
+
+```{r echo = TRUE, message = FALSE, warning = FALSE, output = FALSE}
 if (!requireNamespace('devtools', quietly = TRUE)){
   install.packages('devtools')
 }
@@ -95,7 +105,7 @@ devtools::install_github("sportsdataverse/sportsdataverse-R")
 ## Package for Visualizing and Analyzing Data
 * [BasketballAnalyzeR](https://github.com/sndmrc/BasketballAnalyzeR?tab=readme-ov-file)
 
-```{r}
+```{r echo = TRUE}
 devtools::install_github("sndmrc/BasketballAnalyzeR")
 ```
 
